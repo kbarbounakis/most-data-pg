@@ -1,4 +1,4 @@
-most-web-pg
+most-data-pg
 ===========
 
 Most Web Framework PostgreSQL Adapter
