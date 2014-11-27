@@ -1,0 +1,31 @@
+{
+  "name": "most-web-pg",
+  "version": "1.0.0",
+  "description": "MOST Web Framework PostgreSQL Adapter",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kbarbounakis/most-data-pg.git"
+  },
+  "keywords": [
+    "most",
+    "web",
+    "data",
+    "db",
+    "adapter",
+    "pg",
+    "postgres",
+    "postgresql"
+  ],
+  "author": "Kyriakos Barbounakis <k.barbounakis@gmail.com>",
+  "license": "BSD3-Clause",
+  "bugs": {
+    "url": "https://github.com/kbarbounakis/most-data-pg/issues"
+  },
+  "homepage": "https://github.com/kbarbounakis/most-data-pg",
+  "dependencies": {
+    "async": "^0.9.0",
+    "most-query": "^0.1.2",
+    "pg": "^4.0.0"
+  }
+}
