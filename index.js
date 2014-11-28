@@ -31,7 +31,7 @@
  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  */
-var util = require('util'), pg = require('pg'), qry = require('most-query');
+var util = require('util'), pg = require('pg'), qry = require('most-query'), async = require('async');
 /**
  * @class PGSqlAdapter
  * @param {*} options
@@ -56,7 +56,7 @@ function PGSqlAdapter(options) {
     var self = this;
     Object.defineProperty(this, 'connectionString', { get: function() {
         return util.format('postgres://%s:%s@%s:%s/%s',
-            self.options.username,
+            self.options.user,
             self.options.password,
             self.options.host,
             self.options.port,
@@ -169,15 +169,15 @@ PGSqlAdapter.prototype.execute = function(query, values, callback) {
                         //if the SQL statement was not an INSERT statement
                         if (!/^INSERT/ig.test(prepared)) {
                             //return result if any
-                            callback(null, result);
+                            callback(null, result.rows);
                         }
                         else {
                             //otherwise get the last sequence value
-                            if (result.length===1) {
-                                callback(null, { insertId:result[0]['lastval'] });
+                            if (result.rows.length===1) {
+                                callback(null, { insertId:result.rows[0]['lastval'] });
                             }
                             else {
-                                callback(null, result);
+                                callback(null, result.rows);
                             }
                         }
                     }
@@ -393,6 +393,59 @@ PGSqlAdapter.formatType = function(field)
 }
 
 /**
+ * @param query {QueryExpression}
+ */
+PGSqlAdapter.prototype.createView = function(name, query, callback) {
+    var self = this;
+    //open database
+    self.open(function(err) {
+        if (err) {
+            callback.call(self, err);
+            return;
+        }
+        //begin transaction
+        self.executeInTransaction(function(tr)
+        {
+            async.waterfall([
+                function(cb) {
+                    self.execute('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=\'public\' AND table_type=\'BASE TABLE\' AND table_name=?', [ name ],function(err, result) {
+                        if (err) { throw err; }
+                        if (result.length==0)
+                            return cb(null, 0);
+                        cb(null, result[0].count);
+                    });
+                },
+                function(arg, cb) {
+                    if (arg==0) { cb(null, 0); return; }
+                    //format query
+                    var sql = util.format("DROP VIEW \"%s\"",name);
+                    self.execute(sql, null, function(err, result) {
+                        if (err) { throw err; }
+                        cb(null, 0);
+                    });
+                },
+                function(arg, cb) {
+                    //format query
+                    var formatter = new PGSqlFormatter();
+                    formatter.settings.nameFormat = PGSqlAdapter.NAME_FORMAT;
+                    var sql = util.format("CREATE VIEW \"%s\" AS %s", name, formatter.format(query));
+                    self.execute(sql, null, function(err, result) {
+                        if (err) { throw err; }
+                        cb(null, 0);
+                    });
+                }
+            ], function(err) {
+                if (err) { tr(err); return; }
+                tr(null);
+            })
+        }, function(err) {
+            callback(err);
+        });
+    });
+
+};
+
+/**
  * @class DataModelMigration
  * @property {string} name
  * @property {string} description
@@ -414,6 +467,17 @@ PGSqlAdapter.prototype.migrate = function(obj, callback) {
      * @type {DataModelMigration|*}
      */
     var migration = obj;
+
+    var format = function(format, obj)
+    {
+        var result = format;
+        if (/%t/.test(format))
+            result = result.replace(/%t/g,PGSqlAdapter.formatType(obj));
+        if (/%f/.test(format))
+            result = result.replace(/%f/g,obj.name);
+        return result;
+    }
+
     if (migration.appliesTo==null)
         throw new Error("Model name is undefined");
     self.open(function(err) {
@@ -489,11 +553,11 @@ PGSqlAdapter.prototype.migrate = function(obj, callback) {
                             return !x.oneToMany
                         }).map(
                             function(x) {
-                                return PGSqlAdapter.format('%f %t', x);
+                                return format('\"%f\" %t', x);
                             }).join(', ');
                         var key = migration.add.filter(function(x) { return x.primary; })[0];
-                        var sql = util.format('CREATE TABLE %s (%s, PRIMARY KEY(%s))', migration.appliesTo, strFields, key.name);
-                        db.query(sql, null, function(err)
+                        var sql = util.format('CREATE TABLE \"%s\" (%s, PRIMARY KEY(\"%s\"))', migration.appliesTo, strFields, key.name);
+                        self.execute(sql, null, function(err)
                         {
                             if (err) { cb(err); return; }
                             cb(null, 1);
@@ -514,7 +578,7 @@ PGSqlAdapter.prototype.migrate = function(obj, callback) {
                                         k+=1;
                                         deletedColumnName =util.format('xx%s_%s', k.toString(), column.columnName);
                                     }
-                                    expressions.push(util.format('ALTER TABLE %s RENAME COLUMN %s TO %s', migration.appliesTo, column.columnName, deletedColumnName));
+                                    expressions.push(util.format('ALTER TABLE \"%s\" RENAME COLUMN \"%s\" TO %s', migration.appliesTo, column.columnName, deletedColumnName));
                                 }
                             }
                         }
@@ -529,7 +593,7 @@ PGSqlAdapter.prototype.migrate = function(obj, callback) {
                                 if (typeof column !== 'undefined')
                                 {
                                     //add expression for adding column
-                                    expressions.push(util.format('ALTER TABLE %s ALTER COLUMN %s TYPE %s', migration.appliesTo, fname, PGSqlAdapter.formatType(migration.add[i])));
+                                    expressions.push(util.format('ALTER TABLE \"%s\" ALTER COLUMN \"%s\" TYPE %s', migration.appliesTo, fname, PGSqlAdapter.formatType(migration.add[i])));
                                 }
                             }
                         }
@@ -542,7 +606,7 @@ PGSqlAdapter.prototype.migrate = function(obj, callback) {
                                 if (typeof column !== 'undefined') {
                                     //important note: Alter column operation is not supported for column types
                                     //todo:validate basic column altering exceptions (based on database engine rules)
-                                    expressions.push(util.format('ALTER TABLE %s ALTER COLUMN %s TYPE %s', migration.appliesTo, migration.add[i].name, PGSqlAdapter.formatType(migration.change[i])));
+                                    expressions.push(util.format('ALTER TABLE \"%s\" ALTER COLUMN \"%s\" TYPE %s', migration.appliesTo, migration.add[i].name, PGSqlAdapter.formatType(migration.change[i])));
                                 }
                             }
                         }
@@ -562,10 +626,10 @@ PGSqlAdapter.prototype.migrate = function(obj, callback) {
 
                     if (arg>0) {
                         //log migration to database
-                        db.query('INSERT INTO migrations SET ?', { appliesTo:migration.appliesTo,
-                            model:migration.model,
-                            version:migration.version,
-                            description:migration.description }, function(err, result)
+                        self.execute('INSERT INTO migrations(appliesTo, model, version, description) VALUES (?,?,?,?)', [migration.appliesTo,
+                            migration.model,
+                            migration.version,
+                            migration.description ], function(err, result)
                         {
                             if (err) throw err;
                             cb(null, 1);
@@ -581,8 +645,9 @@ PGSqlAdapter.prototype.migrate = function(obj, callback) {
             });
         }
     });
+};
 
-}
+PGSqlAdapter.NAME_FORMAT = '"$1"';
 
 /**
  * @class PGSqlFormatter
@@ -591,10 +656,16 @@ PGSqlAdapter.prototype.migrate = function(obj, callback) {
  */
 function PGSqlFormatter() {
     this.settings = {
-        nameFormat:'"$1"'
+        nameFormat:PGSqlAdapter.NAME_FORMAT
     }
 }
 util.inherits(PGSqlFormatter, qry.classes.SqlFormatter);
+
+PGSqlFormatter.prototype.escapeName = function(name) {
+    if (typeof name === 'string')
+        return name.replace(/(\w+)/ig, this.settings.nameFormat);
+    return name;
+}
 
 var pgsql = {
     /**

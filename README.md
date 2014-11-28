@@ -16,7 +16,7 @@ Register PostgreSQL adapter on app.json as follows:
             "options": {
               "host":"localhost",
               "post":5432,
-              "username":"user",
+              "user":"user",
               "password":"password",
               "database":"db"
             }
