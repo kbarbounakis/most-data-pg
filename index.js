@@ -661,11 +661,99 @@ function PGSqlFormatter() {
 }
 util.inherits(PGSqlFormatter, qry.classes.SqlFormatter);
 
+/**
+ * Implements indexOf(str,substr) expression formatter.
+ * @param {String} p0 The source string
+ * @param {String} p1 The string to search for
+ */
+PGSqlFormatter.prototype.$indexof = function(p0, p1)
+{
+
+    var result = util.format('POSITION(%s IN %s)', this.escape(p1), this.escape(p0));
+    return result;
+};
+
+/**
+ * Implements startsWith(a,b) expression formatter.
+ * @param p0 {*}
+ * @param p1 {*}
+ */
+PGSqlFormatter.prototype.$startswith = function(p0, p1)
+{
+    //validate params
+    if (Object.isNullOrUndefined(p0) || Object.isNullOrUndefined(p1))
+        return '';
+    return util.format('(%s ~ \'^%s\')', this.escape(p0), this.escape(p1, true));
+};
+
+/**
+ * Implements endsWith(a,b) expression formatter.
+ * @param p0 {*}
+ * @param p1 {*}
+ */
+PGSqlFormatter.prototype.$endswith = function(p0, p1)
+{
+    //validate params
+    if (Object.isNullOrUndefined(p0) || Object.isNullOrUndefined(p1))
+        return '';
+    var result = util.format('(%s ~ \'%s$$\')', this.escape(p0), this.escape(p1, true));
+    return result;
+};
+
+/**
+ * Implements substring(str,pos) expression formatter.
+ * @param {String} p0 The source string
+ * @param {Number} pos The starting position
+ * @param {Number=} length The length of the resulted string
+ * @returns {string}
+ */
+PGSqlFormatter.prototype.$substring = function(p0, pos, length)
+{
+    if (length)
+        return util.format('SUBSTRING(%s FROM %s FOR %s)', this.escape(p0), pos.valueOf()+1, length.valueOf());
+    else
+        return util.format('SUBSTRING(%s FROM %s)', this.escape(p0), pos.valueOf()+1);
+};
+
+/**
+ * Implements contains(a,b) expression formatter.
+ * @param p0 {*}
+ * @param p1 {*}
+ */
+PGSqlFormatter.prototype.$contains = function(p0, p1)
+{
+    //validate params
+    if (Object.isNullOrUndefined(p0) || Object.isNullOrUndefined(p1))
+        return '';
+    if (p1.valueOf().toString().length==0)
+        return '';
+    return util.format('(%s ~ \'%s\')', this.escape(p0), this.escape(p1, true));
+};
+
 PGSqlFormatter.prototype.escapeName = function(name) {
     if (typeof name === 'string')
         return name.replace(/(\w+)/ig, this.settings.nameFormat);
     return name;
-}
+};
+
+/**
+ * Implements length(a) expression formatter.
+ * @param p0 {*}
+ */
+PGSqlFormatter.prototype.$length = function(p0)
+{
+    return util.format('LENGTH(%s)', this.escape(p0));
+};
+
+PGSqlFormatter.prototype.$day = function(p0) { return util.format('DATE_PART(\'day\',%s)', this.escape(p0)); };
+PGSqlFormatter.prototype.$month = function(p0) { return util.format('DATE_PART(\'month\',%s)', this.escape(p0)); };
+PGSqlFormatter.prototype.$year = function(p0) { return util.format('DATE_PART(\'year\',%s)', this.escape(p0)); };
+PGSqlFormatter.prototype.$hour = function(p0) { return util.format('DATE_PART(\'hour\',%s)', this.escape(p0)); };
+PGSqlFormatter.prototype.$minute = function(p0) { return util.format('DATE_PART(\'minute\',%s)', this.escape(p0)); };
+PGSqlFormatter.prototype.$second = function(p0) { return util.format('DATE_PART(\'second\',%s)', this.escape(p0)); };
+PGSqlFormatter.prototype.$date = function(p0) {
+    return util.format('CAST(%s AS DATE)', this.escape(p0));
+};
 
 var pgsql = {
     /**
