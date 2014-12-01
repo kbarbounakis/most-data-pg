@@ -316,9 +316,10 @@ PGSqlAdapter.prototype.executeBatch = function(batch, callback) {
 /**
  *
  * @param {*|{type:string, size:number, nullable:boolean}} field
+ * @param {string=} format
  * @returns {string}
  */
-PGSqlAdapter.formatType = function(field)
+PGSqlAdapter.formatType = function(field, format)
 {
     var size = parseInt(field.size);
     var s = 'varchar(512) NULL';
@@ -388,7 +389,10 @@ PGSqlAdapter.formatType = function(field)
             s = 'integer';
             break;
     }
-    s += (typeof field.nullable === 'undefined') ? ' NULL': (field.nullable ? ' NULL': ' NOT NULL');
+    if (format==='alter')
+        s += (typeof field.nullable === 'undefined') ? ' DROP NOT NULL': (field.nullable ? ' DROP NOT NULL': ' SET NOT NULL');
+    else
+        s += (typeof field.nullable === 'undefined') ? ' NULL': (field.nullable ? ' NULL': ' NOT NULL');
     return s;
 }
 
@@ -408,7 +412,7 @@ PGSqlAdapter.prototype.createView = function(name, query, callback) {
         {
             async.waterfall([
                 function(cb) {
-                    self.execute('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=\'public\' AND table_type=\'BASE TABLE\' AND table_name=?', [ name ],function(err, result) {
+                    self.execute('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=\'public\' AND table_type=\'VIEW\' AND table_name=?', [ name ],function(err, result) {
                         if (err) { throw err; }
                         if (result.length==0)
                             return cb(null, 0);
@@ -533,8 +537,8 @@ PGSqlAdapter.prototype.migrate = function(obj, callback) {
                 function(arg, cb) {
                     //migration has already been applied
                     if (arg<0) { cb(null, [arg, null]); return; }
-                    self.execute('SELECT column_name AS columnName, ordinal_position as ordinal, data_type as dataType,' +
-                    'character_maximum_length as maxLength, is_nullable AS  isNullable, column_default AS defaultValue' +
+                    self.execute('SELECT column_name AS "columnName", ordinal_position as "ordinal", data_type as "dataType",' +
+                    'character_maximum_length as "maxLength", is_nullable AS  "isNullable", column_default AS "defaultValue"' +
                     ' FROM information_schema.columns WHERE table_name=?',
                         [migration.appliesTo], function(err, result) {
                             if (err) { cb(err); return; }
@@ -583,17 +587,31 @@ PGSqlAdapter.prototype.migrate = function(obj, callback) {
                             }
                         }
                         //2. enumerate fields to add
+                        var newSize, originalSize, fieldName, nullable;
                         if (migration.add)
                         {
                             for(i=0;i<migration.add.length;i++)
                             {
-                                fname = migration.add[i].name;
+                                //get field name
+                                fieldName = migration.add[i].name;
                                 //check if field exists or not
-                                column = columns.filter(function(x) { return x.columnName === fname; })[0];
-                                if (typeof column !== 'undefined')
-                                {
+                                column = columns.filter(function(x) { return x.columnName === fieldName; })[0];
+                                if (typeof column !== 'undefined') {
+                                    //get original field size
+                                    originalSize = column.maxLength;
+                                    //and new foeld size
+                                    newSize = migration.add[i].size;
+                                    //add expression for modifying column (size)
+                                    if ((typeof newSize !== 'undefined') && (originalSize!=newSize)) {
+                                        expressions.push(util.format('UPDATE pg_attribute SET atttypmod = %s+4 WHERE attrelid = \'"%s"\'::regclass AND attname = \'%s\';',newSize, migration.appliesTo,  fieldName));
+                                    }
+                                    //update nullable attribute
+                                    nullable = (typeof migration.add[i].nullable !=='undefined') ? migration.add[i].nullable  : true;
+                                    expressions.push(util.format('ALTER TABLE \"%s\" ALTER COLUMN \"%s\" %s', migration.appliesTo, fieldName, (nullable ? 'DROP NOT NULL' : 'SET NOT NULL')));
+                                }
+                                else {
                                     //add expression for adding column
-                                    expressions.push(util.format('ALTER TABLE \"%s\" ALTER COLUMN \"%s\" TYPE %s', migration.appliesTo, fname, PGSqlAdapter.formatType(migration.add[i])));
+                                    expressions.push(util.format('ALTER TABLE \"%s\" ADD COLUMN \"%s\" %s', migration.appliesTo, fieldName, PGSqlAdapter.formatType(migration.add[i])));
                                 }
                             }
                         }
