@@ -459,7 +459,55 @@ PGSqlAdapter.prototype.createView = function(name, query, callback) {
  * @property {array} add
  * @property {array} remove
  * @property {array} change
- *
+ */
+/**
+ * @param {string} name
+ * @returns {{exists: Function}}
+ */
+PGSqlAdapter.prototype.table = function(name) {
+    var self = this;
+    return {
+        /**
+         * @param {function(Error,Boolean=)} callback
+         */
+        exists: function(callback) {
+            callback = callback || function() {};
+            self.execute('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=\'public\' AND table_type=\'BASE TABLE\' AND table_name=?',
+                [name], function(err, result) {
+                    if (err) { callback(err); return; }
+                    callback(null, (result[0].count>0));
+                });
+        },
+        /**
+         * @param {function(Error,string=)} callback
+         */
+        version:function(callback) {
+            self.execute('SELECT MAX("version") AS version FROM migrations WHERE "appliesTo"=?',
+                [name], function(err, result) {
+                    if (err) { cb(err); return; }
+                    if (result.length==0)
+                        callback(null, '0.0');
+                    else
+                        callback(null, result[0].version || '0.0');
+                });
+        },
+        /**
+         * @param {function(Error,{columnName:string,ordinal:number,dataType:*, maxLength:number,isNullable:number }[]=)} callback
+         */
+        columns:function(callback) {
+            callback = callback || function() {};
+            self.execute('SELECT column_name AS "columnName", ordinal_position as "ordinal", data_type as "dataType",' +
+                'character_maximum_length as "maxLength", is_nullable AS  "isNullable", column_default AS "defaultValue"' +
+                ' FROM information_schema.columns WHERE table_name=?',
+                [name], function(err, result) {
+                    if (err) { callback(err); return; }
+                    callback(null, result);
+                });
+        }
+    }
+}
+
+ /*
  * @param obj {DataModelMigration|*} An Object that represents the data model scheme we want to migrate
  * @param callback {Function}
  */
@@ -497,53 +545,55 @@ PGSqlAdapter.prototype.migrate = function(obj, callback) {
                         cb(null, 1);
                         return;
                     }
-                    self.execute('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=\'public\' AND table_type=\'BASE TABLE\' AND table_name=?',
-                        ['migrations'], function(err, result) {
-                            if (err) { cb(err); return; }
-                            PGSqlAdapter.supportMigrations=(result[0].count>0);
-                            cb(null, result[0].count);
-                        });
+                    self.table('migrations').exists(function(err, exists) {
+                        if (err) { cb(err); return; }
+                        cb(null, exists);
+                    });
                 },
                 //2. Create migrations table if not exists
                 function(arg, cb) {
                     if (arg>0) { cb(null, 0); return; }
                     //create migrations table
                     self.execute('CREATE TABLE migrations(id SERIAL NOT NULL, ' +
-                            'appliesTo varchar(80) NOT NULL, model varchar(120) NULL, description varchar(512),version varchar(40) NOT NULL)',
+                            '"appliesTo" varchar(80) NOT NULL, "model" varchar(120) NULL, "description" varchar(512),"version" varchar(40) NOT NULL)',
                         ['migrations'], function(err) {
                             if (err) { cb(err); return; }
+                            PGSqlAdapter.supportMigrations=true;
                             cb(null, 0);
                         });
                 },
                 //3. Check if migration has already been applied
                 function(arg, cb) {
-                    self.execute('SELECT COUNT(*) AS count FROM migrations WHERE appliesTo=? and version=?',
-                        [migration.appliesTo, migration.version], function(err, result) {
-                            if (err) { cb(err); return; }
-                            cb(null, result[0].count);
-                        });
+                    self.table(migration.appliesTo).version(function(err, version) {
+                        if (err) { cb(err); return; }
+                        cb(null, (version>=migration.version));
+                    });
+
                 },
                 //4a. Check table existence
                 function(arg, cb) {
                     //migration has already been applied (set migration.updated=true)
-                    if (arg>0) { obj['updated']=true; cb(null, -1); return; }
-                    self.execute('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=\'public\' AND table_type=\'BASE TABLE\' AND table_name=?',
-                        [migration.appliesTo], function(err, result) {
+                    if (arg) {
+                        obj['updated']=true;
+                        cb(null, -1);
+                        return;
+                    }
+                    else {
+                        self.table(migration.appliesTo).exists(function(err, exists) {
                             if (err) { cb(err); return; }
-                            cb(null, result[0].count);
+                            cb(null, exists ? 1 : 0);
                         });
+
+                    }
                 },
                 //4b. Get table columns
                 function(arg, cb) {
                     //migration has already been applied
                     if (arg<0) { cb(null, [arg, null]); return; }
-                    self.execute('SELECT column_name AS "columnName", ordinal_position as "ordinal", data_type as "dataType",' +
-                    'character_maximum_length as "maxLength", is_nullable AS  "isNullable", column_default AS "defaultValue"' +
-                    ' FROM information_schema.columns WHERE table_name=?',
-                        [migration.appliesTo], function(err, result) {
-                            if (err) { cb(err); return; }
-                            cb(null, [arg, result]);
-                        });
+                    self.table(migration.appliesTo).columns(function(err, columns) {
+                        if (err) { cb(err); return; }
+                        cb(null, [arg, columns]);
+                    });
                 },
                 //5. Migrate target table (create or alter)
                 function(args, cb)
@@ -644,7 +694,7 @@ PGSqlAdapter.prototype.migrate = function(obj, callback) {
 
                     if (arg>0) {
                         //log migration to database
-                        self.execute('INSERT INTO migrations(appliesTo, model, version, description) VALUES (?,?,?,?)', [migration.appliesTo,
+                        self.execute('INSERT INTO migrations("appliesTo", "model", "version", "description") VALUES (?,?,?,?)', [migration.appliesTo,
                             migration.model,
                             migration.version,
                             migration.description ], function(err, result)
@@ -654,9 +704,10 @@ PGSqlAdapter.prototype.migrate = function(obj, callback) {
                             return;
                         });
                     }
-                    else
+                    else {
+                        migration['updated'] = true;
                         cb(null, arg);
-
+                    }
                 }
             ], function(err, result) {
                 callback(err, result);
