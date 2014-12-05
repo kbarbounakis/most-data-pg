@@ -68,12 +68,21 @@ function PGSqlAdapter(options) {
  * @param {function(Error=)} callback
  */
 PGSqlAdapter.prototype.open = function(callback) {
+    var self = this;
     callback = callback || function() {};
-    if (this.rawConnection) {
+    if (self.rawConnection) {
         callback();
         return;
     }
-    this.rawConnection = new pg.Client(this.connectionString);
+    self.rawConnection = new pg.Client(this.connectionString);
+
+    self.rawConnection.on('error', function(err) {
+        console.log('Connection Error');
+        console.log(err.message);
+        if (err.stack) {
+            console.log(err.stack);
+        }
+    });
     //try to connection
     this.rawConnection.connect(function(err) {
         if(err) {
