@@ -159,37 +159,16 @@ PGSqlAdapter.prototype.execute = function(query, values, callback) {
             else {
                 //todo: validate statement for sql injection (e.g single statement etc)
                 //log statement (optional)
-                //if (process.env.NODE_ENV==='development')
-                console.log(util.format('SQL:%s, Parameters:%s', sql, JSON.stringify(values)));
+                if (process.env.NODE_ENV==='development')
+                    console.log(util.format('SQL:%s, Parameters:%s', sql, JSON.stringify(values)));
                 var prepared = self.prepare(sql, values);
-                //if the SQL statement is an INSERT statement
-                if (/^INSERT/ig.test(prepared)) {
-                    //add statement for inserted identifier
-                    if (!/;$/.test(prepared))
-                        prepared = prepared.concat(';');
-                    prepared = prepared.concat('SELECT lastval();');
-                }
                 //execute raw command
                 self.rawConnection.query(prepared, null, function(err, result) {
                     if (err) {
                         callback(err);
-                        return;
                     }
                     else {
-                        //if the SQL statement was not an INSERT statement
-                        if (!/^INSERT/ig.test(prepared)) {
-                            //return result if any
-                            callback(null, result.rows);
-                        }
-                        else {
-                            //otherwise get the last sequence value
-                            if (result.rows.length===1) {
-                                callback(null, { insertId:result.rows[0]['lastval'] });
-                            }
-                            else {
-                                callback(null, result.rows);
-                            }
-                        }
+                        callback(null, result.rows);
                     }
                 });
             }
@@ -199,6 +178,30 @@ PGSqlAdapter.prototype.execute = function(query, values, callback) {
         callback.call(self, e);
     }
 
+};
+
+PGSqlAdapter.prototype.lastIndentity = function(callback) {
+    var self = this;
+    self.open(function(err) {
+        if (err) {
+            callback(err);
+        }
+        else {
+            //execute lastval (for sequence)
+            self.rawConnection.query('SELECT lastval()', null, function(err, lastval) {
+                if (err) {
+                    callback(null, { insertId: null });
+                }
+                else {
+                    lastval.rows = lastval.rows || [];
+                    if (lastval.rows.length>0)
+                        callback(null, { insertId:lastval.rows[0]['lastval'] });
+                    else
+                        callback(null, { insertId: null });
+                }
+            });
+        }
+    });
 };
 
 /**
@@ -390,7 +393,7 @@ PGSqlAdapter.formatType = function(field, format)
             s = size > 0 ? util.format('bytea(%s)', size) : 'bytea';
             break;
         case 'Guid':
-            s = 'varchar(36)';
+            s = 'uuid';
             break;
         case 'Short':
             s = 'smallint';
@@ -499,6 +502,17 @@ PGSqlAdapter.prototype.table = function(name) {
                         callback(null, '0.0');
                     else
                         callback(null, result[0].version || '0.0');
+                });
+        },
+        /**
+         * @param {function(Error,Boolean=)} callback
+         */
+        has_sequence:function(callback) {
+            callback = callback || function() {};
+            self.execute('SELECT COUNT(*) FROM information_schema.columns WHERE table_name=? AND table_schema=\'public\' AND ("column_default" ~ \'^nextval\((.*?)\)$\')',
+                [name], function(err, result) {
+                    if (err) { callback(err); return; }
+                    callback(null, (result[0].count>0));
                 });
         },
         /**
