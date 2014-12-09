@@ -180,7 +180,7 @@ PGSqlAdapter.prototype.execute = function(query, values, callback) {
 
 };
 
-PGSqlAdapter.prototype.lastIndentity = function(callback) {
+PGSqlAdapter.prototype.lastIdentity = function(callback) {
     var self = this;
     self.open(function(err) {
         if (err) {
