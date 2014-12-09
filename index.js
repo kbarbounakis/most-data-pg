@@ -68,6 +68,7 @@ function PGSqlAdapter(options) {
  * @param {function(Error=)} callback
  */
 PGSqlAdapter.prototype.open = function(callback) {
+
     var self = this;
     callback = callback || function() {};
     if (self.rawConnection) {
