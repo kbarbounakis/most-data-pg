@@ -758,6 +758,24 @@ function PGSqlFormatter() {
 util.inherits(PGSqlFormatter, qry.classes.SqlFormatter);
 
 /**
+ *
+ * @param {QueryExpression|{$take:number=,$skip:number=}} obj
+ * @returns {string}
+ */
+PGSqlFormatter.prototype.formatLimitSelect = function(obj) {
+    var sql=this.formatSelect(obj);
+    if (obj.$take) {
+        if (obj.$skip)
+        //add limit and skip records
+            sql= sql.concat(' LIMIT ', obj.$take.toString() ,' OFFSET ',obj.$skip.toString());
+        else
+        //add only limit
+            sql= sql.concat(' LIMIT ',  obj.$take.toString());
+    }
+    return sql;
+};
+
+/**
  * Implements indexOf(str,substr) expression formatter.
  * @param {String} p0 The source string
  * @param {String} p1 The string to search for
