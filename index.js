@@ -166,6 +166,8 @@ PGSqlAdapter.prototype.execute = function(query, values, callback) {
                 //execute raw command
                 self.rawConnection.query(prepared, null, function(err, result) {
                     if (err) {
+                        //log sql
+                        console.log(util.format('SQL Error:%s', prepared));
                         callback(err);
                     }
                     else {
