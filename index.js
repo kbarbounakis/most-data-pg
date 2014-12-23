@@ -775,6 +775,21 @@ PGSqlFormatter.prototype.formatLimitSelect = function(obj) {
     return sql;
 };
 
+PGSqlFormatter.prototype.escapeConstant = function(obj, quoted) {
+    var res = this.escape(obj, quoted);
+    if (typeof obj === 'undefined' || obj === null)
+        res += '::text';
+    else if (obj instanceof Date)
+        res += '::timestamp';
+    else if (typeof obj === 'number')
+        res += '::float';
+    else if (typeof obj === 'boolean')
+        res += '::bit';
+    else
+        res += '::text';
+    return res;
+};
+
 /**
  * Implements indexOf(str,substr) expression formatter.
  * @param {String} p0 The source string
