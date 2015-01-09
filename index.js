@@ -798,7 +798,7 @@ PGSqlFormatter.prototype.escapeConstant = function(obj, quoted) {
 PGSqlFormatter.prototype.$indexof = function(p0, p1)
 {
 
-    var result = util.format('POSITION(lower(%s) IN lower(%s))', this.escape(p1), this.escape(p0));
+    var result = util.format('POSITION(lower(%s) IN lower(%s::text))', this.escape(p1), this.escape(p0));
     return result;
 };
 
