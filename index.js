@@ -784,7 +784,7 @@ PGSqlFormatter.prototype.escapeConstant = function(obj, quoted) {
     else if (typeof obj === 'number')
         res += '::float';
     else if (typeof obj === 'boolean')
-        res += '::bit';
+        res += '::bool';
     else
         res += '::text';
     return res;
