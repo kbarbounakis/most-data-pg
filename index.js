@@ -32,6 +32,11 @@
  *
  */
 var util = require('util'), pg = require('pg'), qry = require('most-query'), async = require('async');
+
+pg.types.setTypeParser(20, function(val) {
+    return val === null ? null : parseInt(val);
+});
+
 /**
  * @class PGSqlAdapter
  * @param {*} options
@@ -77,19 +82,11 @@ PGSqlAdapter.prototype.open = function(callback) {
     }
     self.rawConnection = new pg.Client(this.connectionString);
 
-    /*self.rawConnection.on('error', function(err) {
-        console.log('Connection Error');
-        console.log(err.message);
-        if (err.stack) {
-            console.log(err.stack);
-        }
-    });*/
-
     //try to connection
-    this.rawConnection.connect(function(err) {
+    self.rawConnection.connect(function(err) {
         if(err) {
             //set connection to null
-            this.rawConnection = null;
+            self.rawConnection = null;
         }
         //and return
         callback(err);
@@ -368,7 +365,7 @@ PGSqlAdapter.formatType = function(field, format)
             s = 'time';
             break;
         case 'Integer':
-            s = 'bigint';
+            s = 'int';
             break;
         case 'Duration':
             s = 'integer';
