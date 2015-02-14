@@ -1,9 +1,12 @@
 /**
- * Created by Kyriakos Barbounakis<k.barbounakis@gmail.com> on 26/11/2014.
+ * MOST Web Framework
+ * A JavaScript Web Framework
+ * http://themost.io
  *
- * Copyright (c) 2014, Kyriakos Barbounakis k.barbounakis@gmail.com
- Anthi Oikonomou anthioikonomou@gmail.com
- All rights reserved.
+ * Copyright (c) 2014, Kyriakos Barbounakis k.barbounakis@gmail.com, Anthi Oikonomou anthioikonomou@gmail.com
+ *
+ * Released under the BSD3-Clause license
+ * Date: 2014-11-27
 
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
