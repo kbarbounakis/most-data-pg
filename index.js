@@ -160,11 +160,16 @@ PGSqlAdapter.prototype.execute = function(query, values, callback) {
             else {
                 //todo: validate statement for sql injection (e.g single statement etc)
                 //log statement (optional)
-                if (process.env.NODE_ENV==='development')
-                    console.log(util.format('SQL:%s, Parameters:%s', sql, JSON.stringify(values)));
+                var startTime;
                 var prepared = self.prepare(sql, values);
+                if (process.env.NODE_ENV==='development') {
+                    startTime = new Date().getTime();
+                }
                 //execute raw command
                 self.rawConnection.query(prepared, null, function(err, result) {
+                    if (process.env.NODE_ENV==='development') {
+                        console.log(util.format('SQL (Execution Time:%sms):%s, Parameters:%s', (new Date()).getTime()-startTime, prepared, JSON.stringify(values)));
+                    }
                     if (err) {
                         //log sql
                         console.log(util.format('SQL Error:%s', prepared));
