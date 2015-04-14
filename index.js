@@ -795,6 +795,27 @@ PGSqlFormatter.prototype.escapeConstant = function(obj, quoted) {
     return res;
 };
 
+var REGEXP_SINGLE_QUOTE_ESCAPE=/\\'/g,
+    SINGLE_QUOTE_ESCAPE ='\'\'',
+    REGEXP_DOUBLE_QUOTE_ESCAPE=/\\"/g,
+    DOUBLE_QUOTE_ESCAPE = '"';
+/**
+ * Escapes an object or a value and returns the equivalent sql value.
+ * @param {*} value - A value that is going to be escaped for SQL statements
+ * @param {boolean} unquoted - An optional value that indicates whether the resulted string will be quoted or not.
+ * @returns {string} - The equivalent SQL string value
+ */
+PGSqlFormatter.prototype.escape = function(value,unquoted) {
+    var res = PGSqlFormatter.super_.prototype.escape.call(this, value, unquoted);
+    if (typeof value === 'string') {
+        if (REGEXP_SINGLE_QUOTE_ESCAPE.test(res))
+            res = res.replace(REGEXP_SINGLE_QUOTE_ESCAPE, SINGLE_QUOTE_ESCAPE);
+        if (REGEXP_DOUBLE_QUOTE_ESCAPE.test(res))
+            res = res.replace(REGEXP_DOUBLE_QUOTE_ESCAPE, DOUBLE_QUOTE_ESCAPE);
+    }
+    return res;
+};
+
 /**
  * Implements indexOf(str,substr) expression formatter.
  * @param {String} p0 The source string
