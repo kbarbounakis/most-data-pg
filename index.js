@@ -415,7 +415,14 @@ PGSqlAdapter.formatType = function(field, format)
     else
         s += (typeof field.nullable === 'undefined') ? ' NULL': (field.nullable ? ' NULL': ' NOT NULL');
     return s;
-}
+};
+
+PGSqlAdapter.prototype.refreshView = function(name, query, callback) {
+    var formatter = new PGSqlFormatter();
+    this.execute('REFRESH MATERIALIZED VIEW ' + formatter.escapeName(name), null, function(err) {
+        callback(err);
+    });
+};
 
 /**
  * @param query {QueryExpression}
