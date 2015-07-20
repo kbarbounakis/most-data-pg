@@ -34,7 +34,7 @@
  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  */
-var util = require('util'), pg = require('pg'), qry = require('most-query'), async = require('async');
+var util = require('util'), pg = require('pg').native, qry = require('most-query'), async = require('async');
 
 pg.types.setTypeParser(20, function(val) {
     return val === null ? null : parseInt(val);
