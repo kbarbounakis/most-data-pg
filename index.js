@@ -802,9 +802,7 @@ PGSqlFormatter.prototype.escapeConstant = function(obj, quoted) {
     return res;
 };
 
-var REGEXP_SINGLE_QUOTE_ESCAPE=/\\'/g,
-    SINGLE_QUOTE_ESCAPE ='\'\'',
-    REGEXP_DOUBLE_QUOTE_ESCAPE=/\\"/g,
+var SINGLE_QUOTE_ESCAPE ='\'\'',
     DOUBLE_QUOTE_ESCAPE = '"';
 /**
  * Escapes an object or a value and returns the equivalent sql value.
@@ -815,10 +813,10 @@ var REGEXP_SINGLE_QUOTE_ESCAPE=/\\'/g,
 PGSqlFormatter.prototype.escape = function(value,unquoted) {
     var res = PGSqlFormatter.super_.prototype.escape.call(this, value, unquoted);
     if (typeof value === 'string') {
-        if (REGEXP_SINGLE_QUOTE_ESCAPE.test(res))
-            res = res.replace(REGEXP_SINGLE_QUOTE_ESCAPE, SINGLE_QUOTE_ESCAPE);
-        if (REGEXP_DOUBLE_QUOTE_ESCAPE.test(res))
-            res = res.replace(REGEXP_DOUBLE_QUOTE_ESCAPE, DOUBLE_QUOTE_ESCAPE);
+        if (/\\'/g.test(res))
+            res = res.replace(/\\'/g, SINGLE_QUOTE_ESCAPE);
+        if (/\\"/g.test(res))
+            res = res.replace(/\\"/g, DOUBLE_QUOTE_ESCAPE);
     }
     return res;
 };
