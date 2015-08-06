@@ -1,6 +1,6 @@
 {
   "name": "most-data-pg",
-  "version": "1.0.19",
+  "version": "1.0.20",
   "description": "MOST Web Framework PostgreSQL Adapter",
   "main": "index.js",
   "repository": {
