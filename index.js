@@ -34,7 +34,7 @@
  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  */
-var util = require('util'), pg = require('pg').native, qry = require('most-query'), async = require('async');
+var util = require('util'), pg = require('pg'), qry = require('most-query'), async = require('async');
 
 pg.types.setTypeParser(20, function(val) {
     return val === null ? null : parseInt(val);
@@ -118,6 +118,11 @@ PGSqlAdapter.prototype.close = function(callback) {
     try {
         //try to close connection
         this.rawConnection.end();
+        if (this.rawConnection.connection && this.rawConnection.connection.stream) {
+            if (typeof this.rawConnection.connection.stream.destroy === 'function') {
+                this.rawConnection.connection.stream.destroy();
+            }
+        }
         this.rawConnection = null;
         activeConnections -= 1;
         if (process.env.NODE_ENV==='development') { console.log(util.format('%s: Connection Close, ActiveConnections=%s', (new Date()).toLocaleString(), activeConnections)); }
