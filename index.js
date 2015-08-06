@@ -71,6 +71,9 @@ function PGSqlAdapter(options) {
             self.options.database);
     }, enumerable:false, configurable:false});
 }
+
+var activeConnections = 0;
+
 /**
  * Opens a new database connection
  * @param {function(Error=)} callback
@@ -91,9 +94,15 @@ PGSqlAdapter.prototype.open = function(callback) {
             //set connection to null
             self.rawConnection = null;
         }
+        activeConnections += 1;
+        if (process.env.NODE_ENV==='development') { console.log(util.format('%s: Connection Open, ActiveConnections=%s', (new Date()).toLocaleString(), activeConnections)); }
         //and return
         callback(err);
     });
+};
+
+PGSqlAdapter.prototype.activeConnections = function() {
+    return activeConnections;
 };
 
 /**
@@ -110,6 +119,8 @@ PGSqlAdapter.prototype.close = function(callback) {
         //try to close connection
         this.rawConnection.end();
         this.rawConnection = null;
+        activeConnections -= 1;
+        if (process.env.NODE_ENV==='development') { console.log(util.format('%s: Connection Close, ActiveConnections=%s', (new Date()).toLocaleString(), activeConnections)); }
         callback();
     }
     catch(e) {
