@@ -34,17 +34,23 @@
  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  */
-var util = require('util'), pg = require('pg'), qry = require('most-query'), async = require('async');
+var util = require('util'),
+    pg = require('pg'),
+    qry = require('most-query'),
+    async = require('async'),
+    adpP = require("most-data-pool");
 
 pg.types.setTypeParser(20, function(val) {
     return val === null ? null : parseInt(val);
 });
+
 
 /**
  * @class PGSqlAdapter
  * @param {*} options
  * @constructor
  * @augments {DataAdapter}
+ * @augments {DataAdapterPoolConnector}
  */
 function PGSqlAdapter(options) {
     this.rawConnection = null;
@@ -59,7 +65,7 @@ function PGSqlAdapter(options) {
     if (typeof this.options.port === 'undefined')
         this.options.port = 5432;
     if (typeof this.options.host === 'undefined')
-        this.options.port = 'localhost';
+        this.options.host = 'localhost';
     //define connection string
     var self = this;
     Object.defineProperty(this, 'connectionString', { get: function() {
@@ -70,15 +76,28 @@ function PGSqlAdapter(options) {
             self.options.port,
             self.options.database);
     }, enumerable:false, configurable:false});
+    //initialize connection pooling
+    var pool = this.options.pool;
+    if (typeof pool !== 'undefined') {
+        pool.name = pool.name || 'pg-pool';
+        if (typeof pgsql.pools[pool.name] === 'undefined') {
+            pgsql.pools[pool.name] = new adpP.DataAdapterPool(pool);
+        }
+    }
+    Object.defineProperty(this, 'pool', {
+        get: function() {
+            if (typeof self.options.pool === 'undefined')
+                return;
+            return pgsql.pools[self.options.pool.name];
+        }, enumerable:false, configurable:false
+    });
 }
-
-var activeConnections = 0;
 
 /**
  * Opens a new database connection
  * @param {function(Error=)} callback
  */
-PGSqlAdapter.prototype.open = function(callback) {
+PGSqlAdapter.prototype.connect = function(callback) {
 
     var self = this;
     callback = callback || function() {};
@@ -94,22 +113,41 @@ PGSqlAdapter.prototype.open = function(callback) {
             //set connection to null
             self.rawConnection = null;
         }
-        activeConnections += 1;
-        if (process.env.NODE_ENV==='development') { console.log(util.format('%s: Connection Open, ActiveConnections=%s', (new Date()).toLocaleString(), activeConnections)); }
         //and return
         callback(err);
     });
 };
 
+/**
+ * Opens a new database connection
+ * @param {function(Error=)} callback
+ */
+PGSqlAdapter.prototype.open = function(callback) {
+    callback = callback || function() {};
+    if (this.rawConnection) { return callback(); }
+    if (this.pool) {
+        //connect through current pool
+        this.pool.connect(this, callback);
+    }
+    else {
+        this.connect(callback);
+    }
+};
+
 PGSqlAdapter.prototype.activeConnections = function() {
-    return activeConnections;
+    if (this.pool) {
+        return this.pool.connections;
+    }
+    else {
+        return 0;
+    }
 };
 
 /**
  * Closes the underlying database connection
  * @param {function(Error=)} callback
  */
-PGSqlAdapter.prototype.close = function(callback) {
+PGSqlAdapter.prototype.disconnect = function(callback) {
     callback = callback || function() {};
     if (typeof this.rawConnection === 'undefined' || this.rawConnection===null) {
         callback();
@@ -124,8 +162,6 @@ PGSqlAdapter.prototype.close = function(callback) {
             }
         }
         this.rawConnection = null;
-        activeConnections -= 1;
-        if (process.env.NODE_ENV==='development') { console.log(util.format('%s: Connection Close, ActiveConnections=%s', (new Date()).toLocaleString(), activeConnections)); }
         callback();
     }
     catch(e) {
@@ -133,6 +169,22 @@ PGSqlAdapter.prototype.close = function(callback) {
         this.rawConnection = null;
         //do nothing (do not raise an error)
         callback();
+    }
+};
+
+/**
+ * Closes the underlying database connection
+ * @param {function(Error=)} callback
+ */
+PGSqlAdapter.prototype.close = function(callback) {
+    callback = callback || function() {};
+    if (typeof this.rawConnection === 'undefined' || this.rawConnection == null) { return callback(); }
+    if (this.pool) {
+        //connect through current pool
+        this.pool.disconnect(this, callback);
+    }
+    else {
+        this.disconnect(callback);
     }
 };
 /**
@@ -155,7 +207,6 @@ PGSqlAdapter.prototype.execute = function(query, values, callback) {
 
         if (typeof query == 'string') {
             //get raw sql statement
-            //todo: this operation may be obsolete (for security reasons)
             sql = query;
         }
         else {
@@ -174,7 +225,6 @@ PGSqlAdapter.prototype.execute = function(query, values, callback) {
                 callback.call(self, err);
             }
             else {
-                //todo: validate statement for sql injection (e.g single statement etc)
                 //log statement (optional)
                 var startTime;
                 var prepared = self.prepare(sql, values);
@@ -528,7 +578,7 @@ PGSqlAdapter.prototype.table = function(name) {
         version:function(callback) {
             self.execute('SELECT MAX("version") AS version FROM migrations WHERE "appliesTo"=?',
                 [name], function(err, result) {
-                    if (err) { cb(err); return; }
+                    if (err) { callback(err); return; }
                     if (result.length==0)
                         callback(null, '0.0');
                     else
@@ -943,8 +993,9 @@ var pgsql = {
      */
     createInstance: function(options) {
         return new PGSqlAdapter(options);
-    }
-}
+    },
+    pools: { }
+};
 
 if (typeof exports !== 'undefined')
 {
