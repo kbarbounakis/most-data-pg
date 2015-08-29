@@ -37,8 +37,7 @@
 var util = require('util'),
     pg = require('pg'),
     qry = require('most-query'),
-    async = require('async'),
-    adpP = require("most-data-pool");
+    async = require('async');
 
 pg.types.setTypeParser(20, function(val) {
     return val === null ? null : parseInt(val);
@@ -50,7 +49,6 @@ pg.types.setTypeParser(20, function(val) {
  * @param {*} options
  * @constructor
  * @augments {DataAdapter}
- * @augments {DataAdapterPoolConnector}
  */
 function PGSqlAdapter(options) {
     this.rawConnection = null;
@@ -76,21 +74,6 @@ function PGSqlAdapter(options) {
             self.options.port,
             self.options.database);
     }, enumerable:false, configurable:false});
-    //initialize connection pooling
-    var pool = this.options.pool;
-    if (typeof pool !== 'undefined') {
-        pool.name = pool.name || 'pg-pool';
-        if (typeof pgsql.pools[pool.name] === 'undefined') {
-            pgsql.pools[pool.name] = new adpP.DataAdapterPool(pool);
-        }
-    }
-    Object.defineProperty(this, 'pool', {
-        get: function() {
-            if (typeof self.options.pool === 'undefined')
-                return;
-            return pgsql.pools[self.options.pool.name];
-        }, enumerable:false, configurable:false
-    });
 }
 
 /**
@@ -125,22 +108,11 @@ PGSqlAdapter.prototype.connect = function(callback) {
 PGSqlAdapter.prototype.open = function(callback) {
     callback = callback || function() {};
     if (this.rawConnection) { return callback(); }
-    if (this.pool) {
-        //connect through current pool
-        this.pool.connect(this, callback);
-    }
-    else {
-        this.connect(callback);
-    }
+    this.connect(callback);
 };
 
 PGSqlAdapter.prototype.activeConnections = function() {
-    if (this.pool) {
-        return this.pool.connections;
-    }
-    else {
-        return 0;
-    }
+    return 0;
 };
 
 /**
@@ -178,14 +150,7 @@ PGSqlAdapter.prototype.disconnect = function(callback) {
  */
 PGSqlAdapter.prototype.close = function(callback) {
     callback = callback || function() {};
-    if (typeof this.rawConnection === 'undefined' || this.rawConnection == null) { return callback(); }
-    if (this.pool) {
-        //connect through current pool
-        this.pool.disconnect(this, callback);
-    }
-    else {
-        this.disconnect(callback);
-    }
+    this.disconnect(callback);
 };
 /**
  * @param {string} query
@@ -993,8 +958,7 @@ var pgsql = {
      */
     createInstance: function(options) {
         return new PGSqlAdapter(options);
-    },
-    pools: { }
+    }
 };
 
 if (typeof exports !== 'undefined')

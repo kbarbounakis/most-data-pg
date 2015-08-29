@@ -26,7 +26,6 @@
   "dependencies": {
     "async": "~0.9.0",
     "most-query": "~0.1.8",
-    "most-data-pool": "~0.1.0",
     "pg": "~4.0.0",
     "pg-native": "^1.8.1"
   }
