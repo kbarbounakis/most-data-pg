@@ -838,7 +838,7 @@ var SINGLE_QUOTE_ESCAPE ='\'\'',
 /**
  * Escapes an object or a value and returns the equivalent sql value.
  * @param {*} value - A value that is going to be escaped for SQL statements
- * @param {boolean} unquoted - An optional value that indicates whether the resulted string will be quoted or not.
+ * @param {boolean=} unquoted - An optional value that indicates whether the resulted string will be quoted or not.
  * @returns {string} - The equivalent SQL string value
  */
 PGSqlFormatter.prototype.escape = function(value,unquoted) {
@@ -860,9 +860,29 @@ PGSqlFormatter.prototype.escape = function(value,unquoted) {
 PGSqlFormatter.prototype.$indexof = function(p0, p1)
 {
 
-    var result = util.format('POSITION(lower(%s) IN lower(%s::text))', this.escape(p1), this.escape(p0));
-    return result;
+    return util.format('POSITION(lower(%s) IN lower(%s::text))', this.escape(p1), this.escape(p0));
 };
+
+/**
+ * Implements regular expression formatting.
+ * @param {*} p0 - An object or string that represents the field which is going to be used in this expression.
+ * @param {string|*} p1 - A string that represents the text to search for
+ * @returns {string}
+ */
+PGSqlFormatter.prototype.$regex = function(p0, p1)
+{
+    //validate params
+    if (Object.isNullOrUndefined(p0) || Object.isNullOrUndefined(p1))
+        return '';
+    return util.format('(%s ~ \'%s\')', this.escape(p0), this.escape(p1, true));
+};
+/**
+ * Implements text search expression formatting.
+ * @param {*} p0 - An object or string that represents the field which is going to be used in this expression.
+ * @param {string|*} p1 - A string that represents the text to search for
+ * @returns {string}
+ */
+PGSqlFormatter.prototype.$text = PGSqlFormatter.prototype.$regex;
 
 /**
  * Implements startsWith(a,b) expression formatter.
