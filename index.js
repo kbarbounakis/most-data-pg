@@ -111,10 +111,6 @@ PGSqlAdapter.prototype.open = function(callback) {
     this.connect(callback);
 };
 
-PGSqlAdapter.prototype.activeConnections = function() {
-    return 0;
-};
-
 /**
  * Closes the underlying database connection
  * @param {function(Error=)} callback
