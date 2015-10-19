@@ -370,6 +370,7 @@ PGSqlAdapter.prototype.executeBatch = function(batch, callback) {
 PGSqlAdapter.formatType = function(field, format)
 {
     var size = parseInt(field.size);
+    var scale = parseInt(field.scale);
     var s = 'varchar(512) NULL';
     var type=field.type;
     switch (type)
@@ -388,7 +389,7 @@ PGSqlAdapter.formatType = function(field, format)
             return 'SERIAL';
         case 'Currency':
         case 'Decimal':
-            s =  util.format('decimal(%s,0)', size>0? size: 10);
+            s =  util.format('decimal(%s,%s)', (size>0? size: 19), (scale>0 ? scale: 4));
             break;
         case 'Date':
             s = 'date';
