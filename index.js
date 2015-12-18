@@ -43,6 +43,10 @@ pg.types.setTypeParser(20, function(val) {
     return val === null ? null : parseInt(val);
 });
 
+pg.types.setTypeParser(1700, function(val) {
+    return val === null ? null : parseFloat(val);
+});
+
 
 /**
  * @class PGSqlAdapter
